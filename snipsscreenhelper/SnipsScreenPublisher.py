@@ -35,6 +35,7 @@
 
 import json
 import paho.mqtt.publish as publish
+import base64
 
 
 
@@ -65,7 +66,7 @@ class SnipsScreenPublisher:
         Keyword Arguments:
             htmlString {str} -- HTML code that the screen displays (default: {''})
         """
-        publish.single(TOPIC, payload=htmlString.encode('base64', 'strict'), 
+        publish.single(TOPIC, payload=base64.b64encode(htmlString.encode('utf-8')),  
                                 qos=0, 
                                 retain=False, 
                                 hostname=self.mqttHost,
