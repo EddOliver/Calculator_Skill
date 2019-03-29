@@ -1,3 +1,2 @@
-hermes-python>=0.2
+hermes-python>=0.3
 inflect
-paho-mqtt

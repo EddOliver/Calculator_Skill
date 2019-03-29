@@ -7,7 +7,7 @@
 # Created Date: Wednesday, January 30th 2019, 6:41:12 pm
 # Author: Greg
 # -----
-# Last Modified: Sun Mar 03 2019
+# Last Modified: Sat Mar 30 2019
 # Modified By: Greg
 # -----
 # Copyright (c) 2019 Greg
@@ -36,22 +36,15 @@ import configparser
 from hermes_python.hermes import Hermes
 from hermes_python.ffi.utils import MqttOptions
 from hermes_python.ontology import *
+from Utilities import Utilities
 import io
-from snipsscreenhelper import *
+
 
 CONFIGURATION_ENCODING_FORMAT = "utf-8"
 CONFIG_INI = "config.ini"
 
 
-MQTT_IP_ADDR = "10.0.1.100"
-MQTT_PORT = 1883
-MQTT_ADDR = "{}:{}".format(MQTT_IP_ADDR, str(MQTT_PORT))
-
-screenPublisher = SnipsScreenPublisher(MQTT_IP_ADDR, MQTT_PORT)
 util = Utilities()
-style = '.table th, .table td {padding: 0; vertical-align: top; border-top: 0px solid #444;}'
-slBuilder = ScreenLayoutBuilder(
-    pageHeaderTitle="", pageHeaderTextAlign=textAlignment.CENTER, cssStyle=style)
 
 
 class SnipsConfigParser(configparser.SafeConfigParser):
@@ -68,25 +61,6 @@ def read_configuration_file(configuration_file):
     except (IOError, configparser.Error) as e:
         return dict()
 
-
-def screen_publish(title="", asr="", fromType="", fromAmount="", toType="", toAmount="", image=""):
-
-    slBuilder.headerHTML = slBuilder.buildHeaderTextHTML(
-        title=title, customClassAdditions="")
-
-    t = ScreenLayoutObjects.Table(tableClassAdditions="text-center")
-    a = '<tr><td width="100%" colspan="3" align="center"><p class="lead mt-3 mb-5" id=""><span class="quotation-mark fs-2x">“ </span>{}<span class="quotation-mark fs-2x"> ”</span></p></td></tr>'.format(
-        asr)
-    a += '<tr><td class="fs-3x mb-0" align="center" width="45%">{}</td><td rowspan="2" width="10%" height="1px"><div class="mdi fs-5x mdi-{}"></div></td><td class="fs-3x mb-0" align="center" width="45%">{}</td></tr>'.format(
-        fromAmount, image, toAmount)
-    a += '<tr><td align="center" class="text-muted text-uppercase fs-1x mb-0" width="45%">{}</td><td align="center" width="45%" class="text-muted text-uppercase fs-1x mb-0">{}</td></tr>'.format(
-        fromType, toType)
-
-    t.tableRows = a
-    code = t.generateTable()
-    slBuilder.pageContent = code
-    code = slBuilder.generateScreenHTML()
-    screenPublisher.publish(code)
 
 def strip_float_point_zero(f):
         """removes '.0' from the end of a float
@@ -361,60 +335,9 @@ def subscribe_intent_currencyConverter(hermes, intentMessage):
         hermes.publish_end_session(
             current_session_id, "error in the currency converter code. check the logs for more information")
 
-def buildMathsMLString(mynumbers,myfunctions):
-    funloopindex = 0
-    numloopindex = 0
-    evalString = ""
-    
-    for index,num in enumerate(mynumbers):
-        if index == numloopindex:
-            num = strip_float_point_zero(num)
-            functionstr = ""
-            insertString = ""
-            screenInsertString = ""
 
-            if len(myfunctions) > funloopindex:
-                functionstr = "{}".format(myfunctions[funloopindex])
 
-            if functionstr == "squared":
-                screenInsertString = "{}^2 ".format(num)
-            elif functionstr == "cubed":
-                screenInsertString = "{}^3 ".format(num)
-            elif functionstr == "square root":
-                screenInsertString = "\sqrt {}{}{}".format("{",num,"}")
-            elif functionstr == "cubed root":
-                screenInsertString = "\sqrt[3]{}{}{}".format("{",num,"}")
-            elif functionstr == "to the power of":
-                numloopindex +=1
-                next_number = mynumbers[numloopindex]
-                next_number = strip_float_point_zero(next_number)
-                screenInsertString = "{}^{}{}{} ".format(num,"{",next_number,"}")
 
-            if len(screenInsertString) > 0:
-                funloopindex +=1
-                functionstr = ""
-                if len(myfunctions) > funloopindex:
-                    functionstr = "{}".format(myfunctions[funloopindex])
-            
-            if functionstr == "plus":
-                functionstr = "+ "
-            elif functionstr == "minus":
-                functionstr = "- "
-            elif functionstr == "times":
-                functionstr = "xx "
-            elif functionstr == "divide":
-                functionstr = "-: "
-
-            if len(screenInsertString) > 0:
-                evalString = "{}{}{}".format(evalString,screenInsertString,functionstr)
-            else:
-                evalString = "{}{}{}".format(evalString,num,functionstr)
-            #print("evalString",evalString)
-            funloopindex +=1
-            numloopindex +=1
-    
-    #print("evalString",evalString)
-    return evalString
 
 def subscribe_intent_mathsQuestion(hermes, intentMessage):
     sayMessage = "Something went wrong, I can not do that maths calculation for you"
@@ -422,18 +345,24 @@ def subscribe_intent_mathsQuestion(hermes, intentMessage):
     try:
         # uses BODMAS.. so in order do division and multiplication, then addition and subtraction..from left to right
         slot_dict = intentMessage.slots.toDict()
-        function_array = slot_dict['function']
-        number_array = slot_dict['number']
+        function_array = []
+        number_array = []
+        if "function" in slot_dict:
+            function_array = slot_dict['function']
+        if "number" in slot_dict:
+            number_array = slot_dict['number']
+            
         is_error = False
 
         mynumbers = []
-        for num in slot_dict['number']:
+        for num in number_array:
             mynumbers.append(num.slot_value.value.value)
 
         myfunctions = []
-        for fun in slot_dict['function']:
+        for fun in function_array:
             myfunctions.append(fun.slot_value.value.value)
 
+        
 
         funloopindex = 0
         evalString = ""
@@ -480,38 +409,24 @@ def subscribe_intent_mathsQuestion(hermes, intentMessage):
                     functionstr = "/"
 
             evalString = "{}{}{}{}".format(evalString,mathsstr,insertString,functionstr)
-         
-            funloopindex +=1
-
         
-        #print("screenStr",screenStr)
+            funloopindex +=1
+           
+        
         if not is_error:
-            screenStr = buildMathsMLString(mynumbers,myfunctions)
+           
+           
             answer = eval(evalString)
-            screenAnswer = util.scientificnumber_to_str(answer,5)
+           
             answer = util.number_to_words(answer, 5)
             #answer = strip_end(p.number_to_words(float_to_str(answer,5))).strip()
             sayMessage = "That would be {}".format(answer)
-
-            slBuilder.headerHTML = slBuilder.buildHeaderTextHTML(title="Calculator", customClassAdditions="")
-
-            t = ScreenLayoutObjects.Table(tableClassAdditions="text-center")
-            a = '<tr><td width="100%" colspan="3" align="center"><p class="lead mt-3 mb-5" id=""><span class="quotation-mark fs-2x">“ </span>{}<span class="quotation-mark fs-2x"> ”</span></p></td></tr>'.format(
-                intentMessage.input)
-            a += '<tr><td width="100%" colspan="3" align="center"><div class="fs-2x mb-3 text-muted" id="">$${}$$</div></td></tr>'.format(
-                screenStr)
-            a += '<tr><td width="100%" colspan="3" align="center"><div class="fs-2x lead mt-3 mb-0" id="">{}</div></td></tr>'.format(
-                screenAnswer)
-
-            t.tableRows = a
-            code = t.generateTable()
-            slBuilder.pageContent = code
-            code = slBuilder.generateScreenHTML()
-            #print(code)
-            screenPublisher.publish(code)
         
     except Exception as e:
         print("Error in mathsQuestion Snippet: {}".format(e))
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(exc_type, fname, exc_tb.tb_lineno)
     
     current_session_id = intentMessage.session_id
     hermes.publish_end_session(current_session_id, sayMessage)
@@ -861,8 +776,7 @@ def subscribe_intent_volumeConverter(hermes, intentMessage):
             answerStr = util.scientificnumber_to_str(answer)
 
             if "{:.3g}".format(amount) == "1":
-                unitsfrom = unitsfrom[:-
-                                      1] if unitsfrom.endswith("s") else unitsfrom
+                unitsfrom = unitsfrom[:-1] if unitsfrom.endswith("s") else unitsfrom
 
             amount = util.number_to_words(amount)
 
@@ -885,9 +799,7 @@ def subscribe_intent_volumeConverter(hermes, intentMessage):
                 sayMessage = "{} {}, is {} {}".format(
                     amount, unitsfrom, answer, unitsto)
 
-            screen_publish(title="Convert Volume", asr=intentMessage.input, fromType=unitsfrom,
-                           fromAmount=amountStr, toType=unitsto, toAmount=answerStr, image="format-color-fill")
-
+            
     except Exception as e:
         print("Error in volumeConverter Snippet: {}".format(e))
 
@@ -965,9 +877,7 @@ def subscribe_intent_speedConverter(hermes, intentMessage):
                 sayMessage = "{} {} {}, is {} {} {}".format(
                     amount, unitsfrom, speedUnitFrom, answer, unitsto, speedUnitTo)
 
-            screen_publish(title="Convert Speed", asr=intentMessage.input, fromType="{}</br>{}".format(unitsfrom, speedUnitFrom),
-                           fromAmount=amountStr, toType="{}</br>{}".format(unitsto, speedUnitTo), toAmount=answerStr, image="speedometer")
-
+            
     except Exception as e:
         print("Error in speedConverter Snippet: {}".format(e))
 
@@ -986,5 +896,5 @@ if __name__ == "__main__":
             .subscribe_intent("ozie:temperatureConverter",  subscribe_intent_temperatureConverter) \
             .subscribe_intent("ozie:volumeConverter",       subscribe_intent_volumeConverter) \
             .subscribe_intent("ozie:speedConverter",        subscribe_intent_speedConverter) \
-            .start()
+            .loop_forever()
 
