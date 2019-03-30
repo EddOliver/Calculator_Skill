@@ -38,6 +38,8 @@ from hermes_python.ffi.utils import MqttOptions
 from hermes_python.ontology import *
 from Utilities import Utilities
 import io
+import sys
+import os
 
 
 CONFIGURATION_ENCODING_FORMAT = "utf-8"
@@ -47,7 +49,7 @@ CONFIG_INI = "config.ini"
 util = Utilities()
 
 
-class SnipsConfigParser(configparser.SafeConfigParser):
+class SnipsConfigParser(configparser.ConfigParser):
     def to_dict(self):
         return {section : {option_name : option for option_name, option in self.items(section)} for section in self.sections()}
 
@@ -174,7 +176,7 @@ def subscribe_intent_weightConverter(hermes, intentMessage):
         weightFunction2 = intentMessage.slots.weightFunction2.first().value.lower()
         amount = intentMessage.slots.amount.first().value
 
-        if weightFunction1 and weightFunction2 and isinstance(amount, (int, long, float)):
+        if weightFunction1 and weightFunction2 and isinstance(amount, (int, float)):
             answer = 0
             weight = amount
 
@@ -234,7 +236,7 @@ def subscribe_intent_lengthConverter(hermes, intentMessage):
         lengthFunction2 = intentMessage.slots.lengthFunction2.first().value.lower()
         amount = intentMessage.slots.amount.first().value
 
-        if lengthFunction1 and lengthFunction2 and isinstance(amount, (int, long, float)):
+        if lengthFunction1 and lengthFunction2 and isinstance(amount, (int, float)):
             answer, unitsfrom, unitsto = convert_lengths(
                 amount, lengthFunction1, lengthFunction2)
 
@@ -267,7 +269,7 @@ def subscribe_intent_currencyConverter(hermes, intentMessage):
     try:
         currencyFrom = ''
         currencyTo = ''
-        slot_dict = intentMessage.slots.toDict()
+        slot_dict = intentMessage.slots.all()
 
         if ('currencyTo' in slot_dict) or ('currencyTo' in slot_dict):
             # all good
@@ -292,7 +294,7 @@ def subscribe_intent_currencyConverter(hermes, intentMessage):
             if currencyFrom == currencyTo:
                 sayMessage = "Converting {} to {} would be the same. {}".format(
                     currencyFrom, currencyTo, amount)
-            elif currencyFrom and currencyTo and isinstance(amount, (int, long, float)):
+            elif currencyFrom and currencyTo and isinstance(amount, (int, float)):
                 import urllib2
                 import json
 
@@ -344,23 +346,21 @@ def subscribe_intent_mathsQuestion(hermes, intentMessage):
 
     try:
         # uses BODMAS.. so in order do division and multiplication, then addition and subtraction..from left to right
-        slot_dict = intentMessage.slots.toDict()
+        #slot_dict = intentMessage.slots.toDict()
         function_array = []
         number_array = []
-        if "function" in slot_dict:
-            function_array = slot_dict['function']
-        if "number" in slot_dict:
-            number_array = slot_dict['number']
+        function_array = intentMessage.slots['function'].all()
+        number_array = intentMessage.slots['number'].all()
             
         is_error = False
 
         mynumbers = []
         for num in number_array:
-            mynumbers.append(num.slot_value.value.value)
+            mynumbers.append(num.value)
 
         myfunctions = []
         for fun in function_array:
-            myfunctions.append(fun.slot_value.value.value)
+            myfunctions.append(fun.value)
 
         
 
@@ -441,7 +441,7 @@ def subscribe_intent_areaFunction(hermes, intentMessage):
         areaFunction2 = intentMessage.slots.areaFunction2.first().value.lower()
         amount = intentMessage.slots.amount.first().value
 
-        if isinstance(amount, (int, long, float)):
+        if isinstance(amount, (int, float)):
             answer = 0
             area = amount
             unitsfrom = "square millimeters"
@@ -567,7 +567,7 @@ def subscribe_intent_temperatureConverter(hermes, intentMessage):
         tempFunction2 = intentMessage.slots.tempFunction2.first().value.lower()
         amount = intentMessage.slots.amount.first().value
 
-        if tempFunction1 and tempFunction2 and isinstance(amount, (int, long, float)):
+        if tempFunction1 and tempFunction2 and isinstance(amount, (int, float)):
             answer = 0
             unitsfrom = "celsius"
             unitsto = "celsius"
@@ -622,7 +622,7 @@ def subscribe_intent_volumeConverter(hermes, intentMessage):
         volumeFunction2 = intentMessage.slots.volumeFunction2.first().value.lower()
         amount = intentMessage.slots.amount.first().value
 
-        if isinstance(amount, (int, long, float)):
+        if isinstance(amount, (int, float)):
             answer = 0
             volume = amount
             unitsfrom = "milliliter"
@@ -689,7 +689,7 @@ def subscribe_intent_volumeConverter(hermes, intentMessage):
                     else:
                         unitsfrom = "cubic meters"
                 elif volumeFunction1 == "cubic feet":
-                    volume = amount / 1.0
+                    volume = amount / 0.000000035314662
                     unitsfrom = "cubic feet"
                 elif volumeFunction1 == "quart":
                     if conf['global']['us_or_uk_metric'].lower() == "uk":
@@ -742,7 +742,7 @@ def subscribe_intent_volumeConverter(hermes, intentMessage):
                     answer = volume * 0.033814
                 unitsto = "fluid ounces"
             elif volumeFunction2 == "kiloliter":
-                answer = volume / 1000000
+                answer = volume * 0.000000001
                 if conf['global']['us_or_uk_metric'].lower() == "uk":
                     unitsto = "kilolitres"
                 else:
@@ -757,7 +757,7 @@ def subscribe_intent_volumeConverter(hermes, intentMessage):
                     answer = volume * 0.0042268
                 unitsto = "cups"
             elif volumeFunction2 == "cubic meter":
-                answer = volume / 1000000
+                answer = volume * 0.000000001
                 if conf['global']['us_or_uk_metric'].lower() == "uk":
                     unitsto = "cubic metres"
                 else:
@@ -817,7 +817,7 @@ def subscribe_intent_speedConverter(hermes, intentMessage):
         speedUnitTo = intentMessage.slots.speedUnitTo.first().value.lower()
         amount = intentMessage.slots.amount.first().value
 
-        if isinstance(amount, (int, long, float)):
+        if isinstance(amount, (int, float)):
             answer = 0
             length = amount
             unitsfrom = "meter"
