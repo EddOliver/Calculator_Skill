@@ -7,7 +7,7 @@
 # Created Date: Wednesday, January 30th 2019, 6:41:12 pm
 # Author: Greg
 # -----
-# Last Modified: Sat Mar 30 2019
+# Last Modified: Thu Apr 04 2019
 # Modified By: Greg
 # -----
 # Copyright (c) 2019 Greg
@@ -58,7 +58,8 @@ def read_configuration_file(configuration_file):
     try:
         with io.open(configuration_file, encoding=CONFIGURATION_ENCODING_FORMAT) as f:
             conf_parser = SnipsConfigParser()
-            conf_parser.readfp(f)
+            conf_parser.read_file(f)
+            #conf_parser.readfp(f)
             return conf_parser.to_dict()
     except (IOError, configparser.Error) as e:
         return dict()
@@ -267,78 +268,70 @@ def subscribe_intent_currencyConverter(hermes, intentMessage):
     sayMessage = "Something has gone wrong, and I can not convert that currency for you"
 
     try:
-        currencyFrom = ''
-        currencyTo = ''
-        slot_dict = intentMessage.slots.all()
-
-        if ('currencyTo' in slot_dict) or ('currencyTo' in slot_dict):
-            # all good
-
-            if 'currencyTo' in slot_dict:
-                currencyTo = slot_dict['currencyTo'][0].slot_value.value.value
-            else:
-                currencyTo = conf['global']['default_currency']
-
-            if 'currencyFrom' in slot_dict:
-                currencyFrom = slot_dict['currencyFrom'][0].slot_value.value.value
-            else:
-                currencyFrom = conf['global']['default_currency']
-
-            a = slot_dict['amount']
-            amount = a[0].slot_value.value.value
-
-            unit = a[0].slot_value.value.unit
+        currencyFrom = None
+        if intentMessage.slots.currencyFrom:
+            currencyFrom = intentMessage.slots.currencyFrom.first().value
+        currencyTo = None
+        if intentMessage.slots.currencyTo:
+            currencyTo = intentMessage.slots.currencyTo.first().value
+        amount = None
+        unit = None
+        if intentMessage.slots.amount:
+            amount = intentMessage.slots.amount.first().value
+            unit = intentMessage.slots.amount.first().unit
             if len(unit) == 3:
                 currencyFrom = unit
+        
 
-            if currencyFrom == currencyTo:
-                sayMessage = "Converting {} to {} would be the same. {}".format(
-                    currencyFrom, currencyTo, amount)
-            elif currencyFrom and currencyTo and isinstance(amount, (int, float)):
-                import urllib2
-                import json
+        if currencyTo == None:
+            currencyTo = conf['global']['default_currency']
 
-                api = conf['secret']['exchange_rate_api']
-                url = "https://www.amdoren.com/api/currency.php?"
-                response = urllib2.urlopen("{}api_key={}&from={}&to={}&amount={}".format(
-                    url, api, currencyFrom, currencyTo, amount))
-                r = json.load(response)
-                if r['error'] == 0:
-                    sayMessage = "In {}, that would be {:.2f}".format(
-                        currencyTo, r['amount'])
-                elif r['error'] == 100:
-                    sayMessage = "You have not provided an API key in the config"
-                elif r['error'] == 110:
-                    sayMessage = "Invalid currency converter API key"
-                elif r['error'] == 210:
-                    sayMessage = "Invalid from currency value"
-                elif r['error'] == 260:
-                    sayMessage = "Invalid to currency value"
-                elif r['error'] == 300:
-                    sayMessage = "The amount must be numeric value"
-                elif r['error'] == 310:
-                    sayMessage = "The amount value is invalid"
-                elif r['error'] == 320:
-                    sayMessage = "The amount cannot be zero"
-                else:
-                    sayMessage = "Sorry, your API limit has been reached for the month"
+        if currencyFrom == None:
+            currencyFrom = conf['global']['default_currency']
 
-                current_session_id = intentMessage.session_id
-                hermes.publish_end_session(current_session_id, sayMessage)
-        else:
-            # not good.. we need at least one slot value
+        if currencyFrom == currencyTo:
+            sayMessage = "Converting {} to {} would be the same. {}".format(
+                currencyFrom, currencyTo, amount)
+        elif currencyFrom and currencyTo and isinstance(amount, (int, float)):
+            import urllib.request
+            import json
+            import ssl
+            context = ssl._create_unverified_context()
+
+            api = conf['secret']['exchange_rate_api']
+            url = "https://www.amdoren.com/api/currency.php?"
+            response = urllib.request.urlopen("{}api_key={}&from={}&to={}&amount={}".format(
+                url, api, currencyFrom, currencyTo, amount), context=context)
+            r = json.load(response)
+            if r['error'] == 0:
+                sayMessage = "In {}, that would be {:.2f}".format(
+                    currencyTo, r['amount'])
+            elif r['error'] == 100:
+                sayMessage = "You have not provided an API key in the config"
+            elif r['error'] == 110:
+                sayMessage = "Invalid currency converter API key"
+            elif r['error'] == 210:
+                sayMessage = "Invalid from currency value"
+            elif r['error'] == 260:
+                sayMessage = "Invalid to currency value"
+            elif r['error'] == 300:
+                sayMessage = "The amount must be numeric value"
+            elif r['error'] == 310:
+                sayMessage = "The amount value is invalid"
+            elif r['error'] == 320:
+                sayMessage = "The amount cannot be zero"
+            else:
+                sayMessage = "Sorry, your API limit has been reached for the month"
+
             current_session_id = intentMessage.session_id
-            hermes.publish_continue_session(current_session_id, "To which currency", [
-                                            "ozie:currencyConverter"])
+            hermes.publish_end_session(current_session_id, sayMessage)
+
 
     except Exception as e:
         print("Error in currencyConverter Snippet: {}".format(e))
         current_session_id = intentMessage.session_id
         hermes.publish_end_session(
             current_session_id, "error in the currency converter code. check the logs for more information")
-
-
-
 
 
 def subscribe_intent_mathsQuestion(hermes, intentMessage):
