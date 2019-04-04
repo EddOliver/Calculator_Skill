@@ -302,7 +302,7 @@ def subscribe_intent_currencyConverter(hermes, intentMessage):
             url = "https://www.amdoren.com/api/currency.php?"
             response = urllib.request.urlopen("{}api_key={}&from={}&to={}&amount={}".format(
                 url, api, currencyFrom, currencyTo, amount), context=context)
-            r = json.loads(response)
+            r = response.json()
             if r['error'] == 0:
                 sayMessage = "In {}, that would be {:.2f}".format(
                     currencyTo, r['amount'])
