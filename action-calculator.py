@@ -331,7 +331,7 @@ def subscribe_intent_currencyConverter(hermes, intentMessage):
         print("Error in currencyConverter Snippet: {}".format(e))
         current_session_id = intentMessage.session_id
         hermes.publish_end_session(
-            current_session_id, "error in the currency converter code. check the logs for more information")
+            current_session_id, "Currency converter error. the API limit may have been reached for the month")
 
 
 def subscribe_intent_mathsQuestion(hermes, intentMessage):
